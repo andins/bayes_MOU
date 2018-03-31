@@ -5,11 +5,10 @@ Created on Sun Mar 25 16:35:54 2018
 
 @author: andrea
 """
-from MOU import MOU
+from MOU import MOU, make_rnd_connectivity
 import numpy as np
 from scipy.stats import pearsonr
 import matplotlib.pyplot as plt
-from make_rnd_connectivity import make_rnd_connectivity
 from os import listdir
 from scipy.io import loadmat
 from sklearn.linear_model import LogisticRegression
