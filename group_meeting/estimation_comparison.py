@@ -5,7 +5,7 @@ Created on Sun Mar 25 16:35:54 2018
 
 @author: andrea
 """
-from MOU import MOU, make_rnd_connectivity
+from MOU import MOU, make_rnd_connectivity, classfy
 import numpy as np
 from scipy.stats import pearsonr
 import matplotlib.pyplot as plt
@@ -218,68 +218,56 @@ plt.errorbar(Ss, rCl.mean(axis=1), rCl.std(axis=1))
 plt.errorbar(Ss, rCm.mean(axis=1), rCm.std(axis=1))
 
 #%% estimate EC from movie dataset with moments and lyapunov method and compare subjects classification
-# load dataset
-ts_movie = np.load('/home/andrea/Work/vicente/data/movie/ts_emp.npy')    
-# remove bad subjects: 1 11 19
-ts_clean = np.delete(ts_movie, [0, 10, 18], 0)
-# load Hagmann SC mask
-movMask = np.load('/home/andrea/Work/vicente/mask_EC.npy')  # [roi, roi] the mask for existing EC connections
-models_l = dict()
-models_m = dict()
-for sb in range(19):  # subjects loop
-    models_l[sb] = dict()
-    models_m[sb] = dict()
-    for ss in range(5):  # sessions loop
-        BOLD_ts = ts_clean[sb, ss, :, :].T
-        models_l[sb][ss] = MOU(n_nodes=66)
-        models_l[sb][ss].fit(X=BOLD_ts, method="lyapunov", SC_mask=movMask)
-        models_m[sb][ss] = MOU(n_nodes=66)
-        models_m[sb][ss].fit(X=BOLD_ts, method="moments", SC_mask=movMask)
-file_name = "MOU_movie.npy"
-np.save(file_name, (models_l, models_m))
+# estimating the connectivity take time, you can skip this step and instead directly load the data matrices for classification
+estimate_connectivity = False
+file_name = 'EC_datamatrix_movie.npy'
 
-# data matrix
-Xl = np.zeros([19*5, np.sum(movMask.flatten())])
-Xm = np.zeros([19*5, np.sum(movMask.flatten())])
-i = 0
-for sb in range(19):  # subjects loop
-    for ss in range(5):  # sessions loop
-        Xl[i, :] = models_l[sb][ss].C[movMask].flatten()
-        Xm[i, :] = models_m[sb][ss].C[movMask].flatten()
-        i += 1
+if estimate_connectivity:
+    ######## Estimate connectivity from data ############
+    # load dataset
+    ts_movie = np.load('/home/andrea/Work/vicente/data/movie/ts_emp.npy')    
+    # remove bad subjects: 1 11 19
+    ts_clean = np.delete(ts_movie, [0, 10, 18], 0)
+    # load Hagmann SC mask
+    movMask = np.load('/home/andrea/Work/vicente/mask_EC.npy')  # [roi, roi] the mask for existing EC connections
+    models_l = dict()
+    models_m = dict()
+    # estimate connectivity
+    for sb in range(19):  # subjects loop
+        models_l[sb] = dict()
+        models_m[sb] = dict()
+        for ss in range(5):  # sessions loop
+            BOLD_ts = ts_clean[sb, ss, :, :].T
+            models_l[sb][ss] = MOU(n_nodes=66)
+            models_l[sb][ss].fit(X=BOLD_ts, method="lyapunov", SC_mask=movMask)
+            models_m[sb][ss] = MOU(n_nodes=66)
+            models_m[sb][ss].fit(X=BOLD_ts, method="moments", SC_mask=movMask)
+    #####################################################
 
-#y = np.array([i for i in range(19) for sess_id in range(5)])  # labels
+
+    ############ data matrix for classification   ##############
+    Xl = np.zeros([19*5, np.sum(movMask.flatten())])
+    Xm = np.zeros([19*5, np.sum(movMask.flatten())])
+    i = 0
+    for sb in range(19):  # subjects loop
+        for ss in range(5):  # sessions loop
+            Xl[i, :] = models_l[sb][ss].C[movMask].flatten()
+            Xm[i, :] = models_m[sb][ss].C[movMask].flatten()
+            i += 1
+    #####################################################
+else:
+    Xl, Xm = np.load(file_name)
+
+# labels
 y = np.array([0 if sess_id<2 else 1 for i in range(19) for sess_id in range(5)])  # labels
 
-clf = LogisticRegression(C=10000, penalty='l2', multi_class= 'multinomial', solver='lbfgs')
+# calculate test-set classification accuracy
+score_l = classfy(X=Xl, y=y)  # lyapunov
+score_m = classfy(X=Xm, y=y)  # moments
 
-# corresponding pipeline: zscore and pca can be easily turned on or off
-pipe_l = Pipeline([('zscore', StandardScaler()),
-                         ('clf', clf)])
-pipe_m = Pipeline([('zscore', StandardScaler()),
-                         ('clf', clf)])
-repetitions = 100  # number of times the train/test split is repeated
-# shuffle splits for validation test accuracy
-shS = ShuffleSplit(n_splits=repetitions, test_size=None, train_size=.8, random_state=0)
-
-score_l = np.zeros([repetitions])
-score_m = np.zeros([repetitions])
-
-i = 0  # counter for repetitions
-for train_idx, test_idx in shS.split(Xl):  # repetitions loop
-    data_trainl = Xl[train_idx, :]
-    data_trainm = Xm[train_idx, :]
-    y_train = y[train_idx]
-    data_testl = Xl[test_idx, :]
-    data_testm = Xm[test_idx, :]
-    y_test = y[test_idx]
-    pipe_l.fit(data_trainl, y_train)
-    pipe_m.fit(data_trainm, y_train)
-    score_l[i] = pipe_l.score(data_testl, y_test)
-    score_m[i] = pipe_m.score(data_testm, y_test)
-    i+=1
-        
 # plot comparison as violin plots
 fig, ax = plt.subplots()
 sns.violinplot(data=[score_l, score_m], cut=0, orient='v', scale='width')
 ax.set_xticklabels(['lyapunov', 'moments'])
+plt.ylabel('classification accuracy')
+plt.show()
