@@ -118,7 +118,6 @@ plt.legend()
 plt.show()
 
 #%% Connectivity estimated from data
-sns.set_style('dark')
 # load BOLD time series
 data = np.loadtxt('ROISignals_0025427_SE01.txt')
 # load structural connectivity mask
@@ -126,19 +125,14 @@ mask_AAL = np.array(loadmat('/home/andrea/Work/vicente/mask_EC_AAL.mat')['mask_E
 model = MOU(n_nodes=116)
 model.fit(X=data, SC_mask=mask_AAL)
 Cemp = model.C
-plt.figure()
-plt.subplot(1,2,1)
-plt.imshow(Cemp, cmap='PiYG')
-plt.xlabel('source')
-plt.ylabel('target')
-plt.colorbar()
-plt.subplot(1,2,2)
-plt.plot(model.simulate(T=500))
-plt.xlabel('time')
-plt.show()
+sns.set_style('dark')
+fig, ax = plt.subplots(nrows=1, ncols=2)
+mapcol = ax[0].imshow(Cemp, cmap='PiYG')
+ax[0].set_xlabel('source')
+ax[0].set_ylabel('target')
+plt.colorbar(mappable=mapcol, ax=ax[0], shrink=.7)
 
-#%% Estimation varying T (with empirical connectivity)
-sns.set_style('darkgrid')
+# Estimation varying T (with empirical connectivity)
 M = 116
 Ts = [500, 1000, 2000, 4000]
 repetitions = 10
@@ -154,12 +148,13 @@ for i, T in enumerate(Ts):
         # compute estimation accuracies
         rCl[i, r] = pearsonr(model_l.C.flatten(), Cemp.flatten())[0]
         rCm[i, r] = pearsonr(model_m.C.flatten(), Cemp.flatten())[0]
-plt.figure()
-plt.errorbar(Ts, rCl.mean(axis=1), rCl.std(axis=1), label='lyapunov')
-plt.errorbar(Ts, rCm.mean(axis=1), rCm.std(axis=1), label='moments')
-plt.xlabel('# time samples')
-plt.ylabel('estimation accuracy')
-plt.legend()
+
+sns.set_style('darkgrid')
+ax[1].errorbar(Ts, rCl.mean(axis=1), rCl.std(axis=1), label='lyapunov')
+ax[1].errorbar(Ts, rCm.mean(axis=1), rCm.std(axis=1), label='moments')
+ax[1].set_xlabel('# time samples')
+ax[1].set_ylabel('estimation accuracy')
+ax[1].legend()
 plt.show()
 
 #%% Application to cognitive state classification
@@ -177,7 +172,7 @@ if estimate_connectivity:
     # load dataset
     ts_movie = np.load('/home/andrea/Work/vicente/data/movie/ts_emp.npy')    
     # remove bad subjects: 1 11 19
-    ts_clean = np.delete(ts_movie, [0, 10, 18], 0)
+    ts_clean = np.delete(ts_movie, [1, 11, 19], 0)
     # load Hagmann SC mask
     movMask = np.load('/home/andrea/Work/vicente/mask_EC.npy')  # [roi, roi] the mask for existing EC connections
     models_l = dict()
@@ -220,4 +215,67 @@ fig, ax = plt.subplots()
 sns.violinplot(data=[score_l, score_m], cut=0, orient='v', scale='width')
 ax.set_xticklabels(['lyapunov', 'moments'])
 plt.ylabel('classification accuracy')
+plt.show()
+
+#%% why does Bayes MAP fail
+
+sns.set_style('darkgrid')
+Ms = [10, 20, 50, 100]
+repetitions = 10  # 10 repetitions already gives a good idea of variability with short execution time
+rCm = np.zeros([len(Ms), repetitions])
+rL = np.zeros([len(Ms), repetitions])
+rQ0 = np.zeros([len(Ms), repetitions])
+rQ1 = np.zeros([len(Ms), repetitions])
+rPrec = np.zeros([len(Ms), repetitions])
+C_im = np.zeros([len(Ms), repetitions])
+
+for i, M in enumerate(Ms):
+    for r in range(repetitions):
+        # create generative connectivity matrix
+        C = make_rnd_connectivity(N=M, density=0.2, connectivity_strength=0.5)
+        # theoretical Lambda
+        J = C.copy()
+        np.fill_diagonal(J, -1)
+        LAM_gen = expm(J)  # maybe add diagonal
+        # generative model
+        gen_model = MOU(n_nodes=M, tau_x=1, mu=0.0, Sigma=None, C=C)
+        # theoretical covariances
+        Q0_gen = gen_model.model_covariance(tau=0)
+        Q1_gen = gen_model.model_covariance(tau=1)
+        prec_gen = np.linalg.inv(Q0_gen)
+        # simulate time series
+        ts = gen_model.simulate(T=500)
+        # instantiate the estimation model and fit it
+        #model_m = MOU(n_nodes=M, tau_x=1, mu=0.0).fit(X=ts, method="moments")
+        # estimate $\Lambda=(Q^0)^{-1} Q^{\tau}$, Q0 and Q1
+        ts_zeromean = ts - np.outer(np.ones(500), ts.mean(0))  # subtract mean
+        Q0_hat = np.dot(ts_zeromean.T, ts_zeromean) / 498
+        Q1_hat = np.dot(ts_zeromean[:-1, :].T, ts_zeromean[1:, :]) / 498
+        prec_hat = np.linalg.inv(Q0_hat)
+        LAM_hat = np.dot(prec_hat, Q1_hat)
+        C_hat = logm(LAM_hat).T
+        np.fill_diagonal(C_hat, 0)
+        # norm of imaginary part of C_hat
+        C_im[i, r] = np.linalg.norm(np.imag(C_hat))
+        C_hat = np.real(C_hat)  # cast to real
+        # compute estimation accuracies
+        rCm[i, r] = pearsonr(C_hat.flatten(), C.flatten())[0]
+        rL[i, r] = pearsonr(LAM_gen.flatten(), LAM_hat.flatten())[0]
+        rQ0[i, r] = pearsonr(Q0_gen.flatten(), Q0_hat.flatten())[0]
+        rQ1[i, r] = pearsonr(Q1_gen.flatten(), Q1_hat.flatten())[0]
+        rPrec[i, r] = pearsonr(prec_gen.flatten(), prec_hat.flatten())[0]
+plt.figure()
+plt.subplot(1, 2, 1)
+plt.errorbar(Ms, rCm.mean(axis=1), rCm.std(axis=1), label='C')
+plt.errorbar(Ms, rL.mean(axis=1), rL.std(axis=1), label=r'$\Lambda$')
+plt.errorbar(Ms, rQ0.mean(axis=1), rQ0.std(axis=1), label=r'$Q^0$')
+plt.errorbar(Ms, rQ1.mean(axis=1), rQ1.std(axis=1), label=r'$Q^1$')
+plt.errorbar(Ms, rPrec.mean(axis=1), rPrec.std(axis=1), label=r'$(Q^0)^{-1}$')
+plt.xlabel('# nodes')
+plt.ylabel('estimation accuracy')
+plt.legend()
+plt.subplot(1, 2, 2)
+plt.errorbar(Ms, C_im.mean(axis=1), C_im.std(axis=1), label='C')
+plt.xlabel('# nodes')
+plt.ylabel('norm of imaginary part of C')
 plt.show()
