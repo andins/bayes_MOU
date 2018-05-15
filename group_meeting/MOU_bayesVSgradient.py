@@ -167,14 +167,15 @@ from sklearn.pipeline import Pipeline
 estimate_connectivity = False
 file_name = 'EC_datamatrix_movie.npy'
 
+# load Hagmann SC mask
+movMask = np.load('/home/andrea/Work/vicente/mask_EC.npy')  # [roi, roi] the mask for existing EC connections
+# load dataset
+ts_movie = np.load('/home/andrea/Work/vicente/data/movie/ts_emp.npy')    
+# remove bad subjects: 1 11 19
+ts_clean = np.delete(ts_movie, [1, 11, 19], 0)
+
 if estimate_connectivity:
     ######## Estimate connectivity from data ############
-    # load dataset
-    ts_movie = np.load('/home/andrea/Work/vicente/data/movie/ts_emp.npy')    
-    # remove bad subjects: 1 11 19
-    ts_clean = np.delete(ts_movie, [1, 11, 19], 0)
-    # load Hagmann SC mask
-    movMask = np.load('/home/andrea/Work/vicente/mask_EC.npy')  # [roi, roi] the mask for existing EC connections
     models_l = dict()
     models_m = dict()
     # estimate connectivity
@@ -203,17 +204,32 @@ if estimate_connectivity:
 else:
     Xl, Xm = np.load(file_name)
 
+# estimate FC
+FC = np.zeros([19, 5, 66, 66])
+for sb in range(19):  # subjects loop
+    for ss in range(2):  # sessions loop
+        BOLD_ts = ts_clean[sb, ss, :, :]
+        FC[sb, ss, :, :] = np.corrcoef(BOLD_ts)
+# data matrix of FC with SC mask
+Xfc = np.zeros([19*5, np.sum(movMask.flatten())])
+i = 0
+for sb in range(19):  # subjects loop
+    for ss in range(5):  # sessions loop
+        Xfc[i, :] = FC[sb, ss, movMask]
+        i += 1
 # labels
-y = np.array([0 if sess_id<2 else 1 for i in range(19) for sess_id in range(5)])  # labels
+y = np.array([0 if sess_id<2 else 1 for i in range(19) for sess_id in range(5)])  # condition labels
+#y = np.array([i for i in range(19) for sess_id in range(5)])  # subject labels
 
 # calculate test-set classification accuracy
 score_l = classfy(X=Xl, y=y)  # lyapunov
 score_m = classfy(X=Xm, y=y)  # moments
+score_fc = classfy(X=Xfc, y=y)  # moments
 
 # plot comparison as violin plots
 fig, ax = plt.subplots()
-sns.violinplot(data=[score_l, score_m], cut=0, orient='v', scale='width')
-ax.set_xticklabels(['lyapunov', 'moments'])
+sns.violinplot(data=[score_l, score_m, score_fc], cut=0, orient='v', scale='width')
+ax.set_xticklabels(['lyapunov', 'moments', 'Pearson FC'])
 plt.ylabel('classification accuracy')
 plt.show()
 
