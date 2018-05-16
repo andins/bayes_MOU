@@ -80,6 +80,10 @@ plt.title(r'$\Sigma$ estimation')
 plt.legend()
 plt.show()
 
+rClM = rCl
+rCmM = rCm
+rSlM = rSl
+rSmM = rSm
 #%% Estimation accuracy varying T (fixed M)
 M = 50
 Ts = [500, 1000, 2000, 4000]
@@ -116,6 +120,35 @@ plt.xlabel('# time samples')
 plt.title(r'$\Sigma$ estimation')
 plt.legend()
 plt.show()
+
+rClT = rCl
+rCmT = rCm
+rSlT = rSl
+rSmT = rSm
+#%% figure for NIPS 2018
+plt.figure()
+plt.subplot(2,2,1)
+plt.errorbar(Ms, rClM.mean(axis=1), rClM.std(axis=1), label='LO')
+plt.errorbar(Ms, rCmM.mean(axis=1), rCmM.std(axis=1), label='MAP')
+plt.xlabel('# nodes')
+plt.ylabel('estimation accuracy')
+plt.title('C estimation')
+plt.subplot(2,2,2)
+plt.errorbar(Ms, rSlM.mean(axis=1), rSlM.std(axis=1), label='LO')
+plt.errorbar(Ms, rSmM.mean(axis=1), rSmM.std(axis=1), label='MAP')
+plt.xlabel('# nodes')
+plt.title(r'$\Sigma$ estimation')
+plt.legend()
+plt.subplot(2,2,3)
+plt.errorbar(Ts, rClT.mean(axis=1), rClT.std(axis=1), label='LO')
+plt.errorbar(Ts, rCmT.mean(axis=1), rCmT.std(axis=1), label='MAP')
+plt.xlabel('# time samples')
+plt.ylabel('estimation accuracy')
+plt.subplot(2,2,4)
+plt.errorbar(Ts, rSlT.mean(axis=1), rSlT.std(axis=1), label='LO')
+plt.errorbar(Ts, rSmT.mean(axis=1), rSmT.std(axis=1), label='MAP')
+plt.xlabel('# time samples')
+
 
 #%% Connectivity estimated from data
 # load BOLD time series
