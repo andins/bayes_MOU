@@ -126,28 +126,29 @@ rCmT = rCm
 rSlT = rSl
 rSmT = rSm
 #%% figure for NIPS 2018
+sns.set_context('poster')
 plt.figure()
 plt.subplot(2,2,1)
 plt.errorbar(Ms, rClM.mean(axis=1), rClM.std(axis=1), label='LO')
 plt.errorbar(Ms, rCmM.mean(axis=1), rCmM.std(axis=1), label='MAP')
-plt.xlabel('# nodes')
-plt.ylabel('estimation accuracy')
-plt.title('C estimation')
+plt.xlabel('# nodes', fontsize=20)
+plt.ylabel('estimation accuracy', fontsize=20)
+plt.title('C estimation', fontsize=20)
 plt.subplot(2,2,2)
 plt.errorbar(Ms, rSlM.mean(axis=1), rSlM.std(axis=1), label='LO')
 plt.errorbar(Ms, rSmM.mean(axis=1), rSmM.std(axis=1), label='MAP')
-plt.xlabel('# nodes')
-plt.title(r'$\Sigma$ estimation')
+plt.xlabel('# nodes', fontsize=20)
+plt.title(r'$\Sigma$ estimation', fontsize=20)
 plt.legend()
 plt.subplot(2,2,3)
 plt.errorbar(Ts, rClT.mean(axis=1), rClT.std(axis=1), label='LO')
 plt.errorbar(Ts, rCmT.mean(axis=1), rCmT.std(axis=1), label='MAP')
-plt.xlabel('# time samples')
-plt.ylabel('estimation accuracy')
+plt.xlabel('# time samples', fontsize=20)
+plt.ylabel('estimation accuracy', fontsize=20)
 plt.subplot(2,2,4)
 plt.errorbar(Ts, rSlT.mean(axis=1), rSlT.std(axis=1), label='LO')
 plt.errorbar(Ts, rSmT.mean(axis=1), rSmT.std(axis=1), label='MAP')
-plt.xlabel('# time samples')
+plt.xlabel('# time samples', fontsize=20)
 
 
 #%% Connectivity estimated from data
@@ -158,11 +159,13 @@ mask_AAL = np.array(loadmat('/home/andrea/Work/vicente/mask_EC_AAL.mat')['mask_E
 model = MOU(n_nodes=116)
 model.fit(X=data, SC_mask=mask_AAL)
 Cemp = model.C
-sns.set_style('dark')
-fig, ax = plt.subplots(nrows=1, ncols=2)
+fig = plt.figure()
+ax = list()
+with sns.axes_style("dark"):
+    ax.append(fig.add_subplot(121))
 mapcol = ax[0].imshow(Cemp, cmap='PiYG')
-ax[0].set_xlabel('source')
-ax[0].set_ylabel('target')
+ax[0].set_xlabel('source', fontsize=20)
+ax[0].set_ylabel('target', fontsize=20)
 plt.colorbar(mappable=mapcol, ax=ax[0], shrink=.7)
 
 # Estimation varying T (with empirical connectivity)
@@ -183,12 +186,15 @@ for i, T in enumerate(Ts):
         rCm[i, r] = pearsonr(model_m.C.flatten(), Cemp.flatten())[0]
 
 sns.set_style('darkgrid')
+ax.append(fig.add_subplot(122))
 ax[1].errorbar(Ts, rCl.mean(axis=1), rCl.std(axis=1), label='lyapunov')
 ax[1].errorbar(Ts, rCm.mean(axis=1), rCm.std(axis=1), label='moments')
-ax[1].set_xlabel('# time samples')
-ax[1].set_ylabel('estimation accuracy')
-ax[1].legend()
+ax[1].set_xlabel('# time samples', fontsize=20)
+ax[1].set_ylabel('estimation accuracy', fontsize=20)
+ax[1].legend(fontsize=20)
 plt.show()
+
+#%% Simulate using full Sigma instead of diagonal. Anything changes?
 
 #%% Application to cognitive state classification
 from sklearn.linear_model import LogisticRegression
