@@ -197,10 +197,6 @@ plt.show()
 #%% Simulate using full Sigma instead of diagonal. Anything changes?
 
 #%% Application to cognitive state classification
-from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import ShuffleSplit
-from sklearn.preprocessing import StandardScaler
-from sklearn.pipeline import Pipeline
 
 # estimating the connectivity take time, you can skip this step and instead directly load the data matrices for classification
 estimate_connectivity = False
@@ -272,10 +268,97 @@ ax.set_xticklabels(['lyapunov', 'moments', 'Pearson FC'])
 plt.ylabel('classification accuracy')
 plt.show()
 
+
+#%% Application to subjects identity classification
+
+# estimating the connectivity take time, you can skip this step and instead directly load the data matrices for classification
+estimate_connectivity = False
+file_name = 'EC_datamatrix_30subj.npy'
+
+# load Hagmann SC mask
+movMask = np.array(loadmat('/home/andrea/Work/vicente/mask_EC_AAL.mat')['mask_EC'], dtype=bool)  # [roi, roi] the mask for existing EC connections
+# load dataset
+ts_B = np.zeros([30, 10, 116, 295])
+for s, sub in enumerate(np.arange(25427, 25457)):
+    for e, ses in enumerate(np.arange(1, 11)):
+        fname = 'ROISignals_00{}_SE{:0>2}.mat'.format(sub, ses)
+        ts_B[s, e, :, :] = loadmat('/home/andrea/Work/vicente/data/datasetB/' + fname)['ROISignals'].T
+
+n_sub = 30
+n_sess = 10
+
+if estimate_connectivity:
+    ######## Estimate connectivity from data ############
+    models_l = dict()
+    models_m = dict()
+    # estimate connectivity
+    for sb in range(n_sub):  # subjects loop
+        models_l[sb] = dict()
+        models_m[sb] = dict()
+        for ss in range(n_sess):  # sessions loop
+            print("session %i subject %i" %(ss, sb))
+            BOLD_ts = ts_B[sb, ss, :, :].T
+            models_l[sb][ss] = MOU(n_nodes=116)
+            models_l[sb][ss].fit(X=BOLD_ts, method="lyapunov", SC_mask=movMask)
+            models_m[sb][ss] = MOU(n_nodes=116)
+            models_m[sb][ss].fit(X=BOLD_ts, method="moments", SC_mask=movMask)
+    #####################################################
+
+
+    ############ data matrix for classification   ##############
+    Xl = np.zeros([n_sub*n_sess, np.sum(movMask.flatten())])
+    Xm = np.zeros([n_sub*n_sess, np.sum(movMask.flatten())])
+    i = 0
+    for sb in range(n_sub):  # subjects loop
+        for ss in range(n_sess):  # sessions loop
+            Xl[i, :] = models_l[sb][ss].C[movMask].flatten()
+            Xm[i, :] = models_m[sb][ss].C[movMask].flatten()
+            i += 1
+    #####################################################
+    np.save(file_name, (Xl, Xm))
+else:
+    Xl, Xm = np.load(file_name)
+
+# estimate FC
+FC = np.zeros([n_sub, n_sess, 116, 116])
+for sb in range(n_sub):  # subjects loop
+    for ss in range(n_sess):  # sessions loop
+        BOLD_ts = ts_B[sb, ss, :, :]
+        FC[sb, ss, :, :] = np.corrcoef(BOLD_ts)
+# data matrix of FC with SC mask
+Xfc = np.zeros([n_sub*n_sess, np.sum(movMask.flatten())])
+i = 0
+for sb in range(n_sub):  # subjects loop
+    for ss in range(n_sess):  # sessions loop
+        Xfc[i, :] = FC[sb, ss, movMask]
+        i += 1
+# labels
+y = np.array([i for i in range(n_sub) for sess_id in range(n_sess)])  # subject labels
+
+# calculate test-set classification accuracy
+score_l = classfy(X=Xl, y=y, trn_sz=.8, zscore=True)  # lyapunov
+score_m = classfy(X=Xm, y=y, trn_sz=.8, zscore=True)  # moments
+score_fc = classfy(X=Xfc, y=y, trn_sz=.8, zscore=True)  # FC
+
+# plot comparison as violin plots
+fig, ax = plt.subplots()
+sns.violinplot(data=[score_l, score_m, score_fc], cut=0, orient='v', scale='width')
+ax.set_xticklabels(['lyapunov', 'moments', 'Pearson FC'])
+plt.ylabel('classification accuracy')
+plt.show()
+
+#%% figure for NIPS
+sns.set_context('poster')
+fig, ax = plt.subplots()
+sns.violinplot(data=[score_l, score_m], cut=0, orient='v', scale='width')
+ax.set_xticklabels(['Lyapunov', 'MAP'], fontsize=20)
+plt.ylabel('classification accuracy', fontsize=20)
+plt.show()
+
 #%% why does Bayes MAP fail
 
 sns.set_style('darkgrid')
-Ms = [10, 20, 50, 100]
+Ms = [10, 20, 50, 100, 200]
 repetitions = 10  # 10 repetitions already gives a good idea of variability with short execution time
 rCm = np.zeros([len(Ms), repetitions])
 rL = np.zeros([len(Ms), repetitions])
@@ -283,6 +366,7 @@ rQ0 = np.zeros([len(Ms), repetitions])
 rQ1 = np.zeros([len(Ms), repetitions])
 rPrec = np.zeros([len(Ms), repetitions])
 C_im = np.zeros([len(Ms), repetitions])
+C_re = np.zeros([len(Ms), repetitions])
 
 for i, M in enumerate(Ms):
     for r in range(repetitions):
@@ -311,7 +395,8 @@ for i, M in enumerate(Ms):
         C_hat = logm(LAM_hat).T
         np.fill_diagonal(C_hat, 0)
         # norm of imaginary part of C_hat
-        C_im[i, r] = np.linalg.norm(np.imag(C_hat))
+        C_im[i, r] = np.linalg.norm(np.imag(C_hat), ord=2)
+        C_re[i, r] = np.linalg.norm(np.real(C_hat), ord=2)
         C_hat = np.real(C_hat)  # cast to real
         # compute estimation accuracies
         rCm[i, r] = pearsonr(C_hat.flatten(), C.flatten())[0]
@@ -326,11 +411,12 @@ plt.errorbar(Ms, rL.mean(axis=1), rL.std(axis=1), label=r'$\Lambda$')
 plt.errorbar(Ms, rQ0.mean(axis=1), rQ0.std(axis=1), label=r'$Q^0$')
 plt.errorbar(Ms, rQ1.mean(axis=1), rQ1.std(axis=1), label=r'$Q^1$')
 plt.errorbar(Ms, rPrec.mean(axis=1), rPrec.std(axis=1), label=r'$(Q^0)^{-1}$')
-plt.xlabel('# nodes')
-plt.ylabel('estimation accuracy')
-plt.legend()
+plt.xlabel('# nodes', fontsize=20)
+plt.ylabel('estimation accuracy', fontsize=20)
+plt.legend(fontsize=20)
 plt.subplot(1, 2, 2)
-plt.errorbar(Ms, C_im.mean(axis=1), C_im.std(axis=1), label='C')
-plt.xlabel('# nodes')
-plt.ylabel('norm of imaginary part of C')
+plt.errorbar(Ms, (C_im/C_re).mean(axis=1), (C_im/C_re).std(axis=1), label='imaginary', c=[.8, 0, .7])
+#plt.errorbar(Ms, C_re.mean(axis=1), C_re.std(axis=1), label='real')
+plt.xlabel('# nodes', fontsize=20)
+plt.ylabel(r'$||imag(C)|| / ||real(C)||$', fontsize=20)
 plt.show()
