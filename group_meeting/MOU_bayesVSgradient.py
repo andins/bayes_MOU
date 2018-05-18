@@ -44,7 +44,7 @@ plt.show()
 #%% Estimation accuracy varying M (with synthetic data)
 sns.set_style('darkgrid')
 Ms = [10, 20, 50, 100]
-repetitions = 10  # 10 repetitions already gives a good idea of variability with short execution time
+repetitions = 100  # 10 repetitions already gives a good idea of variability with short execution time
 rCl = np.zeros([len(Ms), repetitions])
 rCm = np.zeros([len(Ms), repetitions])
 rSl = np.zeros([len(Ms), repetitions])
@@ -87,7 +87,7 @@ rSmM = rSm
 #%% Estimation accuracy varying T (fixed M)
 M = 50
 Ts = [500, 1000, 2000, 4000]
-repetitions = 10
+repetitions = 100
 rCl = np.zeros([len(Ts), repetitions])
 rCm = np.zeros([len(Ts), repetitions])
 for i, T in enumerate(Ts):
@@ -129,25 +129,25 @@ rSmT = rSm
 sns.set_context('poster')
 plt.figure()
 plt.subplot(2,2,1)
-plt.errorbar(Ms, rClM.mean(axis=1), rClM.std(axis=1), label='LO')
-plt.errorbar(Ms, rCmM.mean(axis=1), rCmM.std(axis=1), label='MAP')
+plt.errorbar(Ms, rClM.mean(axis=1), rClM.std(axis=1), label='Lyapunov')
+plt.errorbar(Ms, rCmM.mean(axis=1), rCmM.std(axis=1), label='Bayesian')
 plt.xlabel('# nodes', fontsize=20)
 plt.ylabel('estimation accuracy', fontsize=20)
 plt.title('C estimation', fontsize=20)
 plt.subplot(2,2,2)
-plt.errorbar(Ms, rSlM.mean(axis=1), rSlM.std(axis=1), label='LO')
-plt.errorbar(Ms, rSmM.mean(axis=1), rSmM.std(axis=1), label='MAP')
+plt.errorbar(Ms, rSlM.mean(axis=1), rSlM.std(axis=1), label='Lyapunov')
+plt.errorbar(Ms, rSmM.mean(axis=1), rSmM.std(axis=1), label='Bayesian')
 plt.xlabel('# nodes', fontsize=20)
 plt.title(r'$\Sigma$ estimation', fontsize=20)
 plt.legend()
 plt.subplot(2,2,3)
-plt.errorbar(Ts, rClT.mean(axis=1), rClT.std(axis=1), label='LO')
-plt.errorbar(Ts, rCmT.mean(axis=1), rCmT.std(axis=1), label='MAP')
+plt.errorbar(Ts, rClT.mean(axis=1), rClT.std(axis=1), label='Lyapunov')
+plt.errorbar(Ts, rCmT.mean(axis=1), rCmT.std(axis=1), label='Bayesian')
 plt.xlabel('# time samples', fontsize=20)
 plt.ylabel('estimation accuracy', fontsize=20)
 plt.subplot(2,2,4)
-plt.errorbar(Ts, rSlT.mean(axis=1), rSlT.std(axis=1), label='LO')
-plt.errorbar(Ts, rSmT.mean(axis=1), rSmT.std(axis=1), label='MAP')
+plt.errorbar(Ts, rSlT.mean(axis=1), rSlT.std(axis=1), label='Lyapunov')
+plt.errorbar(Ts, rSmT.mean(axis=1), rSmT.std(axis=1), label='Bayesian')
 plt.xlabel('# time samples', fontsize=20)
 
 
@@ -187,8 +187,8 @@ for i, T in enumerate(Ts):
 
 sns.set_style('darkgrid')
 ax.append(fig.add_subplot(122))
-ax[1].errorbar(Ts, rCl.mean(axis=1), rCl.std(axis=1), label='lyapunov')
-ax[1].errorbar(Ts, rCm.mean(axis=1), rCm.std(axis=1), label='moments')
+ax[1].errorbar(Ts, rCl.mean(axis=1), rCl.std(axis=1), label='Lyapunov')
+ax[1].errorbar(Ts, rCm.mean(axis=1), rCm.std(axis=1), label='Bayesian')
 ax[1].set_xlabel('# time samples', fontsize=20)
 ax[1].set_ylabel('estimation accuracy', fontsize=20)
 ax[1].legend(fontsize=20)
@@ -351,15 +351,15 @@ plt.show()
 sns.set_context('poster')
 fig, ax = plt.subplots()
 sns.violinplot(data=[score_l, score_m], cut=0, orient='v', scale='width')
-ax.set_xticklabels(['Lyapunov', 'MAP'], fontsize=20)
+ax.set_xticklabels(['Lyapunov', 'Bayesian'], fontsize=20)
 plt.ylabel('classification accuracy', fontsize=20)
 plt.show()
 
 #%% why does Bayes MAP fail
 
 sns.set_style('darkgrid')
-Ms = [10, 20, 50, 100, 200]
-repetitions = 10  # 10 repetitions already gives a good idea of variability with short execution time
+Ms = [10, 20, 50, 100]
+repetitions = 100  # 10 repetitions already gives a good idea of variability with short execution time
 rCm = np.zeros([len(Ms), repetitions])
 rL = np.zeros([len(Ms), repetitions])
 rQ0 = np.zeros([len(Ms), repetitions])
@@ -418,5 +418,5 @@ plt.subplot(1, 2, 2)
 plt.errorbar(Ms, (C_im/C_re).mean(axis=1), (C_im/C_re).std(axis=1), label='imaginary', c=[.8, 0, .7])
 #plt.errorbar(Ms, C_re.mean(axis=1), C_re.std(axis=1), label='real')
 plt.xlabel('# nodes', fontsize=20)
-plt.ylabel(r'$||imag(C)|| / ||real(C)||$', fontsize=20)
+plt.ylabel(r'$|\operatorname{Im}(C)| / |\operatorname{Re}(C)|$', fontsize=20)
 plt.show()
